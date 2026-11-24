@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF 線上合併工具｜先排檔序、按需展開刪頁</title>
+
+  <!-- 固定版本 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .header-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title-area h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .title-area p {
+      margin: 2px 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .privacy-badge {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    main {
+      max-width: 1160px;
+      margin: 20px auto;
+      padding: 0 20px 80px;
+    }
+
+    .dropzone {
+      background: var(--card);
+      border: 2px dashed #94a3b8;
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .dropzone-icon {
+      font-size: 1.9rem;
+      margin-bottom: 6px;
+    }
+
+    .dropzone h2 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+    }
+
+    .dropzone p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: #f1f5f9;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .btn-danger {
+      color: var(--danger);
+      border-color: #fecaca;
+      background: #fff;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: var(--danger-bg);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 0.8rem;
+    }
+
+    .toolbar {
+      margin-top: 18px;
+      background: var(--card);
+      border: 2px solid #bfdbfe;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .summary-text {
+      font-size: 0.92rem;
+    }
+
+    .summary-text strong {
+      color: var(--primary);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filename-input {
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      width: 190px;
+    }
+
+    .status-bar {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .status-bar.info {
+      display: block;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+
+    .status-bar.error {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .file-list {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .file-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .file-header {
+      padding: 12px 16px;
+      background: #f8fafc;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .file-header.expanded {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .order-badge {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 2px 9px;
+      border-radius: 999px;
+    }
+
+    .file-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      word-break: break-all;
+    }
+
+    .file-meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .file-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* 預設收合，點開才顯示縮圖 */
+    .pages-grid {
+      padding: 16px;
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+    }
+
+    .pages-grid.expanded {
+      display: grid;
+    }
+
+    .page-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .page-item.deleted {
+      background: var(--danger-bg);
+      border-color: #fca5a5;
+      opacity: 0.72;
+    }
+
+    .thumb-wrap {
+      width: 100%;
+      height: 185px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f1f5f9;
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: zoom-in;
+      position: relative;
+    }
+
+    .deleted-tag {
+      position: absolute;
+      background: rgba(220, 38, 38, 0.92);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .page-footer {
+      width: 100%;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .page-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .page-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .btn-delete-page {
+      width: 100%;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 20px;
+    }
+
+    .modal.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #fff;
+      border-radius: 10px;
+      max-width: 90vw;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .modal-body {
+      padding: 16px;
+      overflow: auto;
+      background: #e2e8f0;
+      text-align: center;
+    }
+
+    .modal-body canvas {
+      max-width: 100%;
+      height: auto;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="title-area">
+        <h1>PDF 線上合併工具</h1>
+        <p>上傳後先列出檔案並排序；需要刪除特定頁時，再點開該檔案的縮圖</p>
+      </div>
+      <div class="privacy-badge">本機瀏覽器運算・檔案不上傳伺服器</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="dropzone" class="dropzone">
+      <div class="dropzone-icon">📄</div>
+      <h2>點擊選擇或將多個 PDF 拖曳至此</h2>
+      <p>上傳後預設收合縮圖，可直接調整檔案順序；需要刪頁時再點開檔案縮圖</p>
+      <button type="button" class="btn btn-primary" id="selectBtn">選擇 PDF 檔案（可多選）</button>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden />
+    </div>
+
+    <div id="statusBar" class="status-bar"></div>
+
+    <div id="toolbar" class="toolbar" style="display: none;">
+      <div class="summary-text" id="summaryText"></div>
+      <div class="toolbar-actions">
+        <label for="outputName" style="font-size: 0.85rem; color: var(--muted);">存檔名稱：</label>
+        <input
+          type="text"
+          id="outputName"
+          class="filename-input"
+          value="merged.pdf"
+          placeholder="merged.pdf"
+        />
+        <button type="button" class="btn btn-danger" id="clearAllBtn">全部清空</button>
+        <button type="button" class="btn btn-primary" id="mergeBtn">合併並下載 PDF</button>
+      </div>
+    </div>
+
+    <div id="fileList" class="file-list"></div>
+  </main>
+
+  <div id="previewModal" class="modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span id="modalTitle">頁面預覽</span>
+        <button type="button" class="btn btn-sm" id="closeModalBtn">關閉 ✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const selectBtn = document.getElementById("selectBtn");
+    const fileListEl = document.getElementById("fileList");
+    const toolbarEl = document.getElementById("toolbar");
+    const summaryTextEl = document.getElementById("summaryText");
+    const statusBarEl = document.getElementById("statusBar");
+    const outputNameEl = document.getElementById("outputName");
+    const clearAllBtn = document.getElementById("clearAllBtn");
+    const mergeBtn = document.getElementById("mergeBtn");
+    const previewModal = document.getElementById("previewModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalBody = document.getElementById("modalBody");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+
+    /**
+     * expanded: 預設 false（上傳後先列出檔案並排序，點開才渲染/顯示縮圖）
+     * thumbnailsRendered: 避免每次上下移檔案就重畫縮圖，畫過一次即快取
+     */
+    let filesState = [];
+
+    function showStatus(msg, type = "info") {
+      statusBarEl.textContent = msg;
+      statusBarEl.className = `status-bar ${type}`;
+    }
+
+    function hideStatus() {
+      statusBarEl.className = "status-bar";
+      statusBarEl.textContent = "";
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    selectBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    dropzone.addEventListener("click", () => fileInput.click());
+
+    window.addEventListener("dragover", (e) => e.preventDefault());
+    window.addEventListener("drop", (e) => e.preventDefault());
+
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove("dragover");
+      if (e.dataTransfer.files?.length) {
+        handleFiles(e.dataTransfer.files);
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files?.length) {
+        handleFiles(e.target.files);
+        fileInput.value = "";
+      }
+    });
+
+    async function handleFiles(fileList) {
+      const pdfFiles = Array.from(fileList).filter(
+        (f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")
+      );
+
+      if (!pdfFiles.length) {
+        showStatus("請選擇有效的 PDF 檔案（.pdf）。", "error");
+        return;
+      }
+
+      showStatus(`正在讀取 ${pdfFiles.length} 個 PDF 檔案...`, "info");
+
+      for (const file of pdfFiles) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const pdfJsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+          const numPages = pdfJsDoc.numPages;
+
+          const pages = [];
+          for (let i = 1; i <= numPages; i++) {
+            pages.push({
+              pageIndex: i - 1,
+              deleted: false,
+              thumbDataUrl: null,
+            });
+          }
+
+          filesState.push({
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+            name: file.name,
+            size: file.size,
+            bytes,
+            pdfJsDoc,
+            expanded: false,
+            thumbnailsRendered: false,
+            pages,
+          });
+        } catch (err) {
+          console.error(err);
+          showStatus(`檔案「${file.name}」無法讀取（可能已加密或損毀）。`, "error");
+        }
+      }
+
+      hideStatus();
+      render();
+    }
+
+    async function ensureThumbnailsRendered(fileObj) {
+      if (fileObj.thumbnailsRendered) return;
+      showStatus(`正在產生「${fileObj.name}」的分頁縮圖...`, "info");
+
+      for (let i = 0; i < fileObj.pages.length; i++) {
+        const page = await fileObj.pdfJsDoc.getPage(fileObj.pages[i].pageIndex + 1);
+        const viewport = page.getViewport({ scale: 0.35 });
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        fileObj.pages[i].thumbDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      }
+
+      fileObj.thumbnailsRendered = true;
+      hideStatus();
+    }
+
+    async function openZoomPreview(fileObj, pageObj) {
+      modalTitle.textContent = `${fileObj.name} - 原第 ${pageObj.pageIndex + 1} 頁`;
+      modalBody.innerHTML = "載入放大預覽中...";
+      previewModal.classList.add("open");
+
+      const page = await fileObj.pdfJsDoc.getPage(pageObj.pageIndex + 1);
+      const viewport = page.getViewport({ scale: 1.4 });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      modalBody.innerHTML = "";
+      modalBody.appendChild(canvas);
+    }
+
+    closeModalBtn.addEventListener("click", () => previewModal.classList.remove("open"));
+    previewModal.addEventListener("click", (e) => {
+      if (e.target === previewModal) previewModal.classList.remove("open");
+    });
+
+    function moveFile(index, delta) {
+      const target = index + delta;
+      if (target < 0 || target >= filesState.length) return;
+      [filesState[index], filesState[target]] = [filesState[target], filesState[index]];
+      render();
+    }
+
+    function removeFile(index) {
+      filesState.splice(index, 1);
+      render();
+    }
+
+    async function toggleExpand(index) {
+      const fileObj = filesState[index];
+      fileObj.expanded = !fileObj.expanded;
+      if (fileObj.expanded) {
+        await ensureThumbnailsRendered(fileObj);
+      }
+      render();
+    }
+
+    function toggleDeletePage(fileIndex, pagePos) {
+      const p = filesState[fileIndex].pages[pagePos];
+      p.deleted = !p.deleted;
+      render();
+    }
+
+    function movePage(fileIndex, pagePos, delta) {
+      const pages = filesState[fileIndex].pages;
+      const target = pagePos + delta;
+      if (target < 0 || target >= pages.length) return;
+      [pages[pagePos], pages[target]] = [pages[target], pages[pagePos]];
+      render();
+    }
+
+    function render() {
+      if (!filesState.length) {
+        toolbarEl.style.display = "none";
+        fileListEl.innerHTML = "";
+        return;
+      }
+
+      toolbarEl.style.display = "flex";
+
+      let totalFiles = filesState.length;
+      let keptPages = 0;
+      let deletedPages = 0;
+
+      filesState.forEach((f) => {
+        f.pages.forEach((p) => {
+          if (p.deleted) deletedPages++;
+          else keptPages++;
+        });
+      });
+
+      summaryTextEl.innerHTML = `已載入 <strong>${totalFiles}</strong> 個檔案｜預計合併 <strong>${keptPages}</strong> 頁（已標記刪除 <strong>${deletedPages}</strong> 頁）`;
+      mergeBtn.disabled = keptPages === 0;
+
+      fileListEl.innerHTML = "";
+
+      filesState.forEach((fileObj, fIdx) => {
+        const activeCount = fileObj.pages.filter((p) => !p.deleted).length;
+        const delCount = fileObj.pages.length - activeCount;
+
+        const card = document.createElement("div");
+        card.className = "file-card";
+
+        const header = document.createElement("div");
+        header.className = `file-header ${fileObj.expanded ? "expanded" : ""}`;
+        header.innerHTML = `
+          <div class="file-info">
+            <span class="order-badge">順位 ${fIdx + 1}</span>
+            <div>
+              <div class="file-name">${escapeHtml(fileObj.name)}</div>
+              <div class="file-meta">${formatBytes(fileObj.size)}・共 ${fileObj.pages.length} 頁（保留 ${activeCount} 頁${delCount > 0 ? `、已刪 ${delCount} 頁` : ""}）</div>
+            </div>
+          </div>
+          <div class="file-controls">
+            <button type="button" class="btn btn-sm" data-action="up" ${fIdx === 0 ? "disabled" : ""}>↑ 上移</button>
+            <button type="button" class="btn btn-sm" data-action="down" ${fIdx === filesState.length - 1 ? "disabled" : ""}>↓ 下移</button>
+            <button type="button" class="btn btn-sm" data-action="toggle">${fileObj.expanded ? "收合縮圖" : "檢視 / 刪頁（展開縮圖）"}</button>
+            <button type="button" class="btn btn-sm btn-danger" data-action="remove">移除此檔</button>
+          </div>
+        `;
+
+        header.querySelector('[data-action="up"]').addEventListener("click", () => moveFile(fIdx, -1));
+        header.querySelector('[data-action="down"]').addEventListener("click", () => moveFile(fIdx, 1));
+        header.querySelector('[data-action="toggle"]').addEventListener("click", () => toggleExpand(fIdx));
+        header.querySelector('[data-action="remove"]').addEventListener("click", () => removeFile(fIdx));
+
+        card.appendChild(header);
+
+        const grid = document.createElement("div");
+        grid.className = `pages-grid ${fileObj.expanded ? "expanded" : ""}`;
+
+        if (fileObj.expanded) {
+          fileObj.pages.forEach((pageObj, pIdx) => {
+            const item = document.createElement("div");
+            item.className = `page-item ${pageObj.deleted ? "deleted" : ""}`;
+
+            const thumbWrap = document.createElement("div");
+            thumbWrap.className = "thumb-wrap";
+            thumbWrap.title = "點擊放大檢視此頁";
+
+            const img = document.createElement("img");
+            img.src = pageObj.thumbDataUrl || "";
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            thumbWrap.appendChild(img);
+
+            if (pageObj.deleted) {
+              const tag = document.createElement("span");
+              tag.className = "deleted-tag";
+              tag.textContent = "已刪除";
+              thumbWrap.appendChild(tag);
+            }
+
+            thumbWrap.addEventListener("click", () => openZoomPreview(fileObj, pageObj));
+
+            const footer = document.createElement("div");
+            footer.className = "page-footer";
+            footer.innerHTML = `
+              <div class="page-top-row">
+                <span>原第 ${pageObj.pageIndex + 1} 頁</span>
+                <div class="page-actions">
+                  <button type="button" class="btn btn-sm" title="往前移" data-p="prev" ${pIdx === 0 ? "disabled" : ""}>◀</button>
+                  <button type="button" class="btn btn-sm" title="往後移" data-p="next" ${pIdx === fileObj.pages.length - 1 ? "disabled" : ""}>▶</button>
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-delete-page ${pageObj.deleted ? "" : "btn-danger"}" data-p="del">
+                ${pageObj.deleted ? "↩ 復原此頁" : "✕ 刪除此頁"}
+              </button>
+            `;
+
+            footer.querySelector('[data-p="prev"]').addEventListener("click", () => movePage(fIdx, pIdx, -1));
+            footer.querySelector('[data-p="next"]').addEventListener("click", () => movePage(fIdx, pIdx, 1));
+            footer.querySelector('[data-p="del"]').addEventListener("click", () => toggleDeletePage(fIdx, pIdx));
+
+            item.appendChild(thumbWrap);
+            item.appendChild(footer);
+            grid.appendChild(item);
+          });
+        }
+
+        card.appendChild(grid);
+        fileListEl.appendChild(card);
+      });
+    }
+
+    clearAllBtn.addEventListener("click", () => {
+      filesState = [];
+      hideStatus();
+      render();
+    });
+
+    mergeBtn.addEventListener("click", async () => {
+      if (!filesState.length) return;
+
+      mergeBtn.disabled = true;
+      showStatus("正在合併保留的頁面並產生下載檔，請稍候...", "info");
+
+      try {
+        const { PDFDocument } = PDFLib;
+        const mergedPdf = await PDFDocument.create();
+
+        for (const fileObj of filesState) {
+          const keptIndices = fileObj.pages
+            .filter((p) => !p.deleted)
+            .map((p) => p.pageIndex);
+
+          if (!keptIndices.length) continue;
+
+          const srcDoc = await PDFDocument.load(fileObj.bytes);
+          const copiedPages = await mergedPdf.copyPages(srcDoc, keptIndices);
+          copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+
+        const mergedBytes = await mergedPdf.save();
+        const blob = new Blob([mergedBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+
+        let filename = outputNameEl.value.trim() || "merged.pdf";
+        if (!filename.toLowerCase().endsWith(".pdf")) {
+          filename += ".pdf";
+        }
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        showStatus(`合併完成！瀏覽器已開始下載「${filename}」。`, "info");
+      } catch (err) {
+        console.error(err);
+        showStatus("合併過程發生錯誤，請確認所有 PDF 均未受密碼保護。", "error");
+      } finally {
+        mergeBtn.disabled = false;
+      }
+    });
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+</html>
